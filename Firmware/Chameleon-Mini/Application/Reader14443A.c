@@ -52,10 +52,19 @@ typedef enum {
 	CardType_NXP_MIFARE_Ultralight,
 	CardType_NXP_MIFARE_DESFire,
 	CardType_NXP_MIFARE_DESFire_EV1,
-	CardType_NXP_MIFARE_Plus_2k,
-	CardType_NXP_MIFARE_Plus_4k,
-	CardType_NXP_MIFARE_Plus_EV1_2k,
-	CardType_NXP_MIFARE_Plus_EV1_4k,
+	CardType_NXP_MIFARE_Plus_2k_SL1,
+	CardType_NXP_MIFARE_Plus_2k_SL2,
+	CardType_NXP_MIFARE_Plus_2k_SL3,
+	CardType_NXP_MIFARE_Plus_2k_SL1_7B,
+	CardType_NXP_MIFARE_Plus_2k_SL2_7B,
+	CardType_NXP_MIFARE_Plus_2k_SL3_7B,
+	CardType_NXP_MIFARE_Plus_4k_SL1,
+	CardType_NXP_MIFARE_Plus_4k_SL2,
+	CardType_NXP_MIFARE_Plus_4k_SL3,
+	CardType_NXP_MIFARE_Plus_4k_SL1_7B,
+	CardType_NXP_MIFARE_Plus_4k_SL2_7B,
+	CardType_NXP_MIFARE_Plus_4k_SL3_7B,
+
 	CardType_IBM_JCOP31,
 	CardType_IBM_JCOP31_v241,
 	CardType_IBM_JCOP41_v22,
@@ -86,28 +95,36 @@ typedef struct {
 } CardIdentificationType;
 
 static const CardIdentificationType PROGMEM CardIdentificationList[] = {
-		[CardType_NXP_MIFARE_Mini] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x09, .Manufacturer="NXP", .Type="MIFARE Mini" },
-		[CardType_NXP_MIFARE_Classic_1k] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x08, .Manufacturer="NXP", .Type="MIFARE Classic 1k" },
-		[CardType_NXP_MIFARE_Classic_4k] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x18, .Manufacturer="NXP", .Type="MIFARE Classic 4k" },
-		[CardType_NXP_MIFARE_Ultralight] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0044, .SAK=0x00, .Manufacturer="NXP", .Type="MIFARE Ultralight" },
-		// for the following two, setting ATSRelevant to true would cause checking the ATS value, but the NXP paper for distinguishing cards does not recommend this
-		[CardType_NXP_MIFARE_DESFire] 			= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE DESFire" },
-		[CardType_NXP_MIFARE_DESFire_EV1] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE DESFire EV1" },
-		[CardType_NXP_MIFARE_Plus_2k] 			= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE Plus 2k" },
-		[CardType_NXP_MIFARE_Plus_4k] 			= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE Plus 4k" },
-		[CardType_NXP_MIFARE_Plus_EV1_2k] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE Plus EV1 2k" },
-		[CardType_NXP_MIFARE_Plus_EV1_4k] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE Plus EV1 4k" },
+	[CardType_NXP_MIFARE_Mini] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x09, .Manufacturer="NXP", .Type="MIFARE Mini" },
+	[CardType_NXP_MIFARE_Classic_1k] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x08, .Manufacturer="NXP", .Type="MIFARE Classic 1k" },
+	[CardType_NXP_MIFARE_Classic_4k] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x18, .Manufacturer="NXP", .Type="MIFARE Classic 4k" },
+	[CardType_NXP_MIFARE_Ultralight] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0044, .SAK=0x00, .Manufacturer="NXP", .Type="MIFARE Ultralight" },
+	// for the following two, setting ATSRelevant to true would cause checking the ATS value, but the NXP paper for distinguishing cards does not recommend this
+	[CardType_NXP_MIFARE_DESFire]			= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE DESFire" },
+	[CardType_NXP_MIFARE_DESFire_EV1] 		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0344, .SAK=0x20, .ATSSize= 5, .ATS={0x75, 0x77, 0x81, 0x02, 0x80}, .Manufacturer="NXP", .Type="MIFARE DESFire EV1" },
+	[CardType_NXP_MIFARE_Plus_2k_SL1]		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x08, .Manufacturer="NXP", .Type="MIFARE Plus 2k Sec level 1" },
+	[CardType_NXP_MIFARE_Plus_2k_SL2]		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x10, .Manufacturer="NXP", .Type="MIFARE Plus 2k Sec level 2" },
+	[CardType_NXP_MIFARE_Plus_2k_SL3]		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x20, .Manufacturer="NXP", .Type="MIFARE Plus 2k Sec level 3" },
+	[CardType_NXP_MIFARE_Plus_2k_SL1_7B]	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0044, .SAK=0x08, .Manufacturer="NXP", .Type="MIFARE Plus 2k Sec level 1" },
+	[CardType_NXP_MIFARE_Plus_2k_SL2_7B]	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0044, .SAK=0x10, .Manufacturer="NXP", .Type="MIFARE Plus 2k Sec level 2" },
+	[CardType_NXP_MIFARE_Plus_2k_SL3_7B]	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0044, .SAK=0x20, .Manufacturer="NXP", .Type="MIFARE Plus 2k Sec level 3" },
+	[CardType_NXP_MIFARE_Plus_4k_SL1]		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x18, .Manufacturer="NXP", .Type="MIFARE Plus 4k Sec level 1" },
+	[CardType_NXP_MIFARE_Plus_4k_SL2]		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x11, .Manufacturer="NXP", .Type="MIFARE Plus 4k Sec level 2" },
+	[CardType_NXP_MIFARE_Plus_4k_SL3]		= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x20, .Manufacturer="NXP", .Type="MIFARE Plus 4k Sec level 3" },
+	[CardType_NXP_MIFARE_Plus_4k_SL1_7B]	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0042, .SAK=0x18, .Manufacturer="NXP", .Type="MIFARE Plus 4k Sec level 1" },
+	[CardType_NXP_MIFARE_Plus_4k_SL2_7B]	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0042, .SAK=0x11, .Manufacturer="NXP", .Type="MIFARE Plus 4k Sec level 2" },
+	[CardType_NXP_MIFARE_Plus_4k_SL3_7B]	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0042, .SAK=0x20, .Manufacturer="NXP", .Type="MIFARE Plus 4k Sec level 3" },
 
-		[CardType_IBM_JCOP31] 					= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0304, .SAK=0x28, .ATSSize= 9, .ATS={0x38, 0x77, 0xb1, 0x4a, 0x43, 0x4f, 0x50, 0x33, 0x31}, .Manufacturer="IBM", .Type="JCOP31" },
-		[CardType_IBM_JCOP31_v241] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0048, .SAK=0x20, .ATSSize=12, .ATS={0x78, 0x77, 0xb1, 0x02, 0x4a, 0x43, 0x4f, 0x50, 0x76, 0x32, 0x34, 0x31}, .Manufacturer="IBM", .Type="JCOP31 v2.4.1" },
-		[CardType_IBM_JCOP41_v22] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0048, .SAK=0x20, .ATSSize=12, .ATS={0x38, 0x33, 0xb1, 0x4a, 0x43, 0x4f, 0x50, 0x34, 0x31, 0x56, 0x32, 0x32}, .Manufacturer="IBM", .Type="JCOP41 v2.2" },
-		[CardType_IBM_JCOP41_v231] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0004, .SAK=0x28, .ATSSize=13, .ATS={0x38, 0x33, 0xb1, 0x4a, 0x43, 0x4f, 0x50, 0x34, 0x31, 0x56, 0x32, 0x33, 0x31}, .Manufacturer="IBM", .Type="JCOP41 v2.3.1" },
+	[CardType_IBM_JCOP31] 					= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0304, .SAK=0x28, .ATSSize= 9, .ATS={0x38, 0x77, 0xb1, 0x4a, 0x43, 0x4f, 0x50, 0x33, 0x31}, .Manufacturer="IBM", .Type="JCOP31" },
+	[CardType_IBM_JCOP31_v241] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0048, .SAK=0x20, .ATSSize=12, .ATS={0x78, 0x77, 0xb1, 0x02, 0x4a, 0x43, 0x4f, 0x50, 0x76, 0x32, 0x34, 0x31}, .Manufacturer="IBM", .Type="JCOP31 v2.4.1" },
+	[CardType_IBM_JCOP41_v22] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0048, .SAK=0x20, .ATSSize=12, .ATS={0x38, 0x33, 0xb1, 0x4a, 0x43, 0x4f, 0x50, 0x34, 0x31, 0x56, 0x32, 0x32}, .Manufacturer="IBM", .Type="JCOP41 v2.2" },
+	[CardType_IBM_JCOP41_v231] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT | CIF_ATS_RELEVANT, .ATQA=0x0004, .SAK=0x28, .ATSSize=13, .ATS={0x38, 0x33, 0xb1, 0x4a, 0x43, 0x4f, 0x50, 0x34, 0x31, 0x56, 0x32, 0x33, 0x31}, .Manufacturer="IBM", .Type="JCOP41 v2.3.1" },
 
-		[CardType_Infineon_MIFARE_Classic_1k] 	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x88, .Manufacturer="Infineon", .Type="MIFARE Classic 1k" },
-		[CardType_Gemplus_MPCOS] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x98, .Manufacturer="Gemplus", .Type="MPCOS" },
-		[CardType_Innovision_Jewel] 			= { .Flags=CIF_ATQA_RELEVANT, .ATQA=0x0C00, .Manufacturer="Innovision R&T", .Type="Jewel" },
-		[CardType_Nokia_MIFARE_Classic_4k_emulated_6212] = { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x38, .Manufacturer="Nokia", .Type="MIFARE Classic 4k - emulated (6212 Classic)" },
-		[CardType_Nokia_MIFARE_Classic_4k_emulated_6131] = { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0008, .SAK=0x38, .Manufacturer="Nokia", .Type="MIFARE Classic 4k - emulated (6131 NFC)" }
+	[CardType_Infineon_MIFARE_Classic_1k] 	= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0004, .SAK=0x88, .Manufacturer="Infineon", .Type="MIFARE Classic 1k" },
+	[CardType_Gemplus_MPCOS] 				= { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x98, .Manufacturer="Gemplus", .Type="MPCOS" },
+	[CardType_Innovision_Jewel] 			= { .Flags=CIF_ATQA_RELEVANT, .ATQA=0x0C00, .Manufacturer="Innovision R&T", .Type="Jewel" },
+	[CardType_Nokia_MIFARE_Classic_4k_emulated_6212] = { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0002, .SAK=0x38, .Manufacturer="Nokia", .Type="MIFARE Classic 4k - emulated (6212 Classic)" },
+	[CardType_Nokia_MIFARE_Classic_4k_emulated_6131] = { .Flags=CIF_ATQA_RELEVANT | CIF_SAK_RELEVANT, .ATQA=0x0008, .SAK=0x38, .Manufacturer="Nokia", .Type="MIFARE Classic 4k - emulated (6131 NFC)" }
 };
 
 #define COUNT_OF(arr) (sizeof(arr) / sizeof(arr[0]))
@@ -539,6 +556,8 @@ INLINE uint16_t Reader14443AIdentify(uint8_t* Buffer, uint16_t BitCount)
 			break;
 		}
 	}
+
+	/* Now print the results */
 
 	if (CardCandidatesIdx == 0)
 	{
