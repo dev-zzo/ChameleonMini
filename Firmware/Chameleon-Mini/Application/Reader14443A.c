@@ -377,6 +377,194 @@ INLINE uint16_t Reader14443A_RATS(uint8_t* Buffer)
 	return addParityBits(Buffer, 32);
 }
 
+INLINE uint16_t Reader14443AIdentify(uint8_t* Buffer, uint16_t BitCount)
+{
+	uint16_t rVal = Reader14443A_Select(Buffer, BitCount);
+	if (!Selected)
+	{
+		return rVal;
+	}
+
+	if (ReaderState >= STATE_SAK_CL1 && ReaderState <= STATE_SAK_CL3)
+	{
+		bool ISO14443_4A_compliant = IS_ISO14443A_4_COMPLIANT(Buffer);
+
+		uint8_t i;
+		for (i = 0; i < sizeof(CardIdentificationList)/sizeof(CardIdentificationType); i++)
+		{
+			CardIdentificationType card;
+			memcpy_P(&card, &CardIdentificationList[i], sizeof(CardIdentificationType));
+			if (card.ATQARelevant && card.ATQA != CardCharacteristics.ATQA)
+				continue;
+			if (card.SAKRelevant && card.SAK != CardCharacteristics.SAK)
+				continue;
+			if (card.ATSRelevant && !ISO14443_4A_compliant)
+				continue; // for this card type candidate, the ATS is relevant, but the card does not support ISO14443-4A
+			CardCandidates[CardCandidatesIdx++] = i;
+		}
+
+		if (ISO14443_4A_compliant)
+		{
+			// send RATS
+			return Reader14443A_RATS(Buffer);
+		}
+		// if we don't have to send the RATS, we are finished for distinguishing with ISO 14443A
+
+	} else if (ReaderState == STATE_ATS) { // we have got the ATS
+		BitCount = removeSOC(Buffer, BitCount);
+		if (!checkParityBits(Buffer, BitCount))
+		{
+			LogEntry(LOG_ERR_APP_CHECKSUM_FAIL, Buffer, (BitCount + 8) / 7);
+			return Reader14443A_Deselect(Buffer);
+		}
+		BitCount = removeParityBits(Buffer, BitCount);
+
+		if (Buffer[0] != BitCount / 8 - 2 || ISO14443_CRCA(Buffer, Buffer[0] + 2))
+		{
+			return Reader14443A_Deselect(Buffer);
+		}
+
+		uint8_t i;
+		for (i = 0; i < CardCandidatesIdx; i++)
+		{
+			CardIdentificationType card;
+			memcpy_P(&card, &CardIdentificationList[CardCandidates[i]], sizeof(CardIdentificationType));
+			if (!card.ATSRelevant || (card.ATSRelevant && card.ATSSize == Buffer[0] - 1 && memcmp(card.ATS, Buffer + 1, card.ATSSize) == 0))
+				/*
+				 * If for this candidate the ATS is not relevant, it remains being a candidate.
+				 * If the ATS is relevant and the size is correct and the ATS is the same as the reference value, this candidate remains a candidate.
+				 */
+				continue;
+
+			// Else, we have to delete this candidate
+			uint8_t j;
+			for (j = i; j < CardCandidatesIdx - 1; j++)
+				CardCandidates[j] = CardCandidates[j+1];
+			CardCandidatesIdx--;
+			i--;
+		}
+	}
+
+	/*
+	 * If any cards are not distinguishable with ISO14443A commands only, this is the place to run some proprietary commands.
+	 */
+
+	if ((ReaderState >= STATE_SAK_CL1 && ReaderState <= STATE_SAK_CL3) || ReaderState == STATE_ATS)
+	{
+		uint8_t i;
+		for (i = 0; i < CardCandidatesIdx; i++)
+		{
+			switch (CardCandidates[i])
+			{
+			case CardType_NXP_MIFARE_DESFire:
+			case CardType_NXP_MIFARE_DESFire_EV1:
+				Buffer[0] = 0x02;
+				Buffer[1] = 0x60;
+				uint16_t crc = ISO14443_CRCA(Buffer, 2);
+				Buffer[2] = crc;
+				Buffer[3] = crc >> 8;
+				ReaderState = STATE_DESFIRE_INFO;
+				return addParityBits(Buffer, 32);
+
+			default:
+				break;
+			}
+		}
+	} else {
+		switch (ReaderState)
+		{
+		case STATE_DESFIRE_INFO:
+			if (BitCount == 0)
+			{
+				CardCandidatesIdx = 0; // this will return that this card is unknown to us
+				break;
+			}
+			BitCount = removeSOC(Buffer, BitCount);
+			if (!checkParityBits(Buffer, BitCount))
+			{
+				LogEntry(LOG_ERR_APP_CHECKSUM_FAIL, Buffer, (BitCount + 8) / 7);
+				CardCandidatesIdx = 0;
+				return Reader14443A_Deselect(Buffer);
+			}
+			BitCount = removeParityBits(Buffer, BitCount);
+			if (ISO14443_CRCA(Buffer, BitCount / 8))
+			{
+				CardCandidatesIdx = 0;
+				return Reader14443A_Deselect(Buffer);
+			}
+			switch (Buffer[3])
+			{
+			case 0x00:
+				CardCandidatesIdx = 1;
+				CardCandidates[0] = CardType_NXP_MIFARE_DESFire;
+				break;
+
+			case 0x01:
+				CardCandidatesIdx = 1;
+				CardCandidates[0] = CardType_NXP_MIFARE_DESFire_EV1;
+				break;
+
+			default:
+				CardCandidatesIdx = 0;
+			}
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	if (CardCandidatesIdx == 0)
+	{
+		CommandLinePendingTaskFinished(COMMAND_INFO_OK_WITH_TEXT_ID, "Unknown card type.");
+	} else if (CardCandidatesIdx == 1) {
+		char tmpType[64];
+		memcpy_P(tmpType, &CardIdentificationList[CardCandidates[0]].Type, 64);
+		CommandLinePendingTaskFinished(COMMAND_INFO_OK_WITH_TEXT_ID, tmpType);
+	} else {
+		char tmpBuf[TERMINAL_BUFFER_SIZE];
+		uint16_t size = 0, tmpsize = 0;
+		bool enoughspace = true;
+
+		uint8_t i;
+		for (i = 0; i < CardCandidatesIdx; i++)
+		{
+			if (size <= TERMINAL_BUFFER_SIZE) // prevents buffer overflow
+			{
+				char tmpType[64];
+				memcpy_P(tmpType, &CardIdentificationList[CardCandidates[i]].Type, 64);
+				tmpsize = snprintf(tmpBuf + size, TERMINAL_BUFFER_SIZE - size, "%s or ", tmpType);
+				size += tmpsize;
+			} else {
+				break;
+			}
+		}
+		if (size > TERMINAL_BUFFER_SIZE)
+		{
+			size -= tmpsize;
+			enoughspace = false;
+		}
+		tmpBuf[size-4] = '.';
+		tmpBuf[size-3] = '\0';
+		CommandLinePendingTaskFinished(COMMAND_INFO_OK_WITH_TEXT_ID, tmpBuf);
+		if (!enoughspace)
+			TerminalSendString("There is at least one more card type candidate, but there was not enough terminal buffer space.\r\n");
+	}
+	// print general data
+	TerminalSendString("ATQA:\t");
+	CommandLineAppendData(&CardCharacteristics.ATQA, 2);
+	TerminalSendString("UID:\t");
+	CommandLineAppendData(CardCharacteristics.UID, CardCharacteristics.UIDSize);
+	TerminalSendString("SAK:\t");
+	CommandLineAppendData(&CardCharacteristics.SAK, 1);
+
+	Reader14443CurrentCommand = Reader14443_Do_Nothing;
+	CardCandidatesIdx = 0;
+	CodecReaderFieldStop();
+	Selected = false;
+	return 0;
+}
+
 uint16_t Reader14443AAppProcess(uint8_t* Buffer, uint16_t BitCount)
 {
 	switch (Reader14443CurrentCommand)
@@ -540,191 +728,7 @@ uint16_t Reader14443AAppProcess(uint8_t* Buffer, uint16_t BitCount)
 		 * This function identifies a PICC. *
 		 ************************************/
 		case Reader14443_Indentify:
-		{
-			uint16_t rVal = Reader14443A_Select(Buffer, BitCount);
-			if (Selected)
-			{
-				if (ReaderState >= STATE_SAK_CL1 && ReaderState <= STATE_SAK_CL3)
-				{
-					bool ISO14443_4A_compliant = IS_ISO14443A_4_COMPLIANT(Buffer);
-
-					uint8_t i;
-					for (i = 0; i < sizeof(CardIdentificationList)/sizeof(CardIdentificationType); i++)
-					{
-						CardIdentificationType card;
-						memcpy_P(&card, &CardIdentificationList[i], sizeof(CardIdentificationType));
-						if (card.ATQARelevant && card.ATQA != CardCharacteristics.ATQA)
-							continue;
-						if (card.SAKRelevant && card.SAK != CardCharacteristics.SAK)
-							continue;
-						if (card.ATSRelevant && !ISO14443_4A_compliant)
-							continue; // for this card type candidate, the ATS is relevant, but the card does not support ISO14443-4A
-						CardCandidates[CardCandidatesIdx++] = i;
-					}
-
-					if (ISO14443_4A_compliant)
-					{
-						// send RATS
-						return Reader14443A_RATS(Buffer);
-					}
-					// if we don't have to send the RATS, we are finished for distinguishing with ISO 14443A
-
-				} else if (ReaderState == STATE_ATS) { // we have got the ATS
-					BitCount = removeSOC(Buffer, BitCount);
-					if (!checkParityBits(Buffer, BitCount))
-					{
-						LogEntry(LOG_ERR_APP_CHECKSUM_FAIL, Buffer, (BitCount + 8) / 7);
-						return Reader14443A_Deselect(Buffer);
-					}
-					BitCount = removeParityBits(Buffer, BitCount);
-
-					if (Buffer[0] != BitCount / 8 - 2 || ISO14443_CRCA(Buffer, Buffer[0] + 2))
-					{
-						return Reader14443A_Deselect(Buffer);
-					}
-
-					uint8_t i;
-					for (i = 0; i < CardCandidatesIdx; i++)
-					{
-						CardIdentificationType card;
-						memcpy_P(&card, &CardIdentificationList[CardCandidates[i]], sizeof(CardIdentificationType));
-						if (!card.ATSRelevant || (card.ATSRelevant && card.ATSSize == Buffer[0] - 1 && memcmp(card.ATS, Buffer + 1, card.ATSSize) == 0))
-							/*
-							 * If for this candidate the ATS is not relevant, it remains being a candidate.
-							 * If the ATS is relevant and the size is correct and the ATS is the same as the reference value, this candidate remains a candidate.
-							 */
-							continue;
-
-						// Else, we have to delete this candidate
-						uint8_t j;
-						for (j = i; j < CardCandidatesIdx - 1; j++)
-							CardCandidates[j] = CardCandidates[j+1];
-						CardCandidatesIdx--;
-						i--;
-					}
-				}
-
-				/*
-				 * If any cards are not distinguishable with ISO14443A commands only, this is the place to run some proprietary commands.
-				 */
-
-				if ((ReaderState >= STATE_SAK_CL1 && ReaderState <= STATE_SAK_CL3) || ReaderState == STATE_ATS)
-				{
-					uint8_t i;
-					for (i = 0; i < CardCandidatesIdx; i++)
-					{
-						switch (CardCandidates[i])
-						{
-						case CardType_NXP_MIFARE_DESFire:
-						case CardType_NXP_MIFARE_DESFire_EV1:
-							Buffer[0] = 0x02;
-							Buffer[1] = 0x60;
-							uint16_t crc = ISO14443_CRCA(Buffer, 2);
-							Buffer[2] = crc;
-							Buffer[3] = crc >> 8;
-							ReaderState = STATE_DESFIRE_INFO;
-							return addParityBits(Buffer, 32);
-
-						default:
-							break;
-						}
-					}
-				} else {
-					switch (ReaderState)
-					{
-					case STATE_DESFIRE_INFO:
-						if (BitCount == 0)
-						{
-							CardCandidatesIdx = 0; // this will return that this card is unknown to us
-							break;
-						}
-						BitCount = removeSOC(Buffer, BitCount);
-						if (!checkParityBits(Buffer, BitCount))
-						{
-							LogEntry(LOG_ERR_APP_CHECKSUM_FAIL, Buffer, (BitCount + 8) / 7);
-							CardCandidatesIdx = 0;
-							return Reader14443A_Deselect(Buffer);
-						}
-						BitCount = removeParityBits(Buffer, BitCount);
-						if (ISO14443_CRCA(Buffer, BitCount / 8))
-						{
-							CardCandidatesIdx = 0;
-							return Reader14443A_Deselect(Buffer);
-						}
-						switch (Buffer[3])
-						{
-						case 0x00:
-							CardCandidatesIdx = 1;
-							CardCandidates[0] = CardType_NXP_MIFARE_DESFire;
-							break;
-
-						case 0x01:
-							CardCandidatesIdx = 1;
-							CardCandidates[0] = CardType_NXP_MIFARE_DESFire_EV1;
-							break;
-
-						default:
-							CardCandidatesIdx = 0;
-						}
-						break;
-
-					default:
-						break;
-					}
-				}
-
-				if (CardCandidatesIdx == 0)
-				{
-					CommandLinePendingTaskFinished(COMMAND_INFO_OK_WITH_TEXT_ID, "Unknown card type.");
-				} else if (CardCandidatesIdx == 1) {
-					char tmpType[64];
-					memcpy_P(tmpType, &CardIdentificationList[CardCandidates[0]].Type, 64);
-					CommandLinePendingTaskFinished(COMMAND_INFO_OK_WITH_TEXT_ID, tmpType);
-				} else {
-					char tmpBuf[TERMINAL_BUFFER_SIZE];
-					uint16_t size = 0, tmpsize = 0;
-					bool enoughspace = true;
-
-					uint8_t i;
-					for (i = 0; i < CardCandidatesIdx; i++)
-					{
-						if (size <= TERMINAL_BUFFER_SIZE) // prevents buffer overflow
-						{
-							char tmpType[64];
-							memcpy_P(tmpType, &CardIdentificationList[CardCandidates[i]].Type, 64);
-							tmpsize = snprintf(tmpBuf + size, TERMINAL_BUFFER_SIZE - size, "%s or ", tmpType);
-							size += tmpsize;
-						} else {
-							break;
-						}
-					}
-					if (size > TERMINAL_BUFFER_SIZE)
-					{
-						size -= tmpsize;
-						enoughspace = false;
-					}
-					tmpBuf[size-4] = '.';
-					tmpBuf[size-3] = '\0';
-					CommandLinePendingTaskFinished(COMMAND_INFO_OK_WITH_TEXT_ID, tmpBuf);
-					if (!enoughspace)
-						TerminalSendString("There is at least one more card type candidate, but there was not enough terminal buffer space.\r\n");
-				}
-				// print general data
-				TerminalSendString("ATQA:\t");
-				CommandLineAppendData(&CardCharacteristics.ATQA, 2);
-				TerminalSendString("UID:\t");
-				CommandLineAppendData(CardCharacteristics.UID, CardCharacteristics.UIDSize);
-				TerminalSendString("SAK:\t");
-				CommandLineAppendData(&CardCharacteristics.SAK, 1);
-
-				Reader14443CurrentCommand = Reader14443_Do_Nothing;
-				CardCandidatesIdx = 0;
-				CodecReaderFieldStop();
-				Selected = false;
-				return 0;
-			}
-			return rVal;
-		}
+			return Reader14443AIdentify(Buffer, BitCount);
 
 		default: // e.g. Do_Nothing
 			return 0;
