@@ -96,7 +96,9 @@ static const CardIdentificationType PROGMEM CardIdentificationList[] = {
 		[CardType_Nokia_MIFARE_Classic_4k_emulated_6131] = { .ATQA=0x0008, .ATQARelevant=true, .SAK=0x38, .SAKRelevant=true, .ATSRelevant=false, .Manufacturer="Nokia", .Type="MIFARE Classic 4k - emulated (6131 NFC)" }
 };
 
-static CardType CardCandidates[sizeof(CardIdentificationList) / sizeof(CardIdentificationType)];
+#define COUNT_OF(arr) (sizeof(arr) / sizeof(arr[0]))
+
+static CardType CardCandidates[COUNT_OF(CardIdentificationList)];
 static uint8_t CardCandidatesIdx = 0;
 
 uint16_t addParityBits(uint8_t * Buffer, uint16_t BitCount)
@@ -390,7 +392,7 @@ INLINE uint16_t Reader14443AIdentify(uint8_t* Buffer, uint16_t BitCount)
 		bool ISO14443_4A_compliant = IS_ISO14443A_4_COMPLIANT(Buffer);
 
 		uint8_t i;
-		for (i = 0; i < sizeof(CardIdentificationList)/sizeof(CardIdentificationType); i++)
+		for (i = 0; i < COUNT_OF(CardIdentificationList); i++)
 		{
 			CardIdentificationType card;
 			memcpy_P(&card, &CardIdentificationList[i], sizeof(CardIdentificationType));
