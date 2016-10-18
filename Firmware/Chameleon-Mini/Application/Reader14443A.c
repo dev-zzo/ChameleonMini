@@ -8,8 +8,8 @@
 #include "../Terminal/Terminal.h"
 
 #define CHECK_BCC(B) ((B[0] ^ B[1] ^ B[2] ^ B[3]) == B[4])
-#define IS_CASCADE_BIT_SET(buf) (buf[0] & 0x04)
-#define IS_ISO14443A_4_COMPLIANT(buf) (buf[0] & 0x20)
+#define IS_CASCADE_BIT_SET(buf) (buf[0] & ISO14443A_SAK_INCOMPLETE)
+#define IS_ISO14443A_4_COMPLIANT(buf) (buf[0] & ISO14443A_SAK_COMPLETE_COMPLIANT)
 
 // TODO replace remaining magic numbers
 
@@ -247,9 +247,7 @@ void Reader14443AAppTick(void)
 INLINE uint16_t Reader14443A_Deselect(uint8_t* Buffer) // deselects the card because of an error, so we will continue to select the card afterwards
 {
 	Buffer[0] = 0xC2;
-	uint16_t crc = ISO14443_CRCA(Buffer, 1);
-	Buffer[1] = crc;
-	Buffer[2] = crc >> 8;
+	ISO14443AAppendCRCA(Buffer, 1);
 	ReaderState = STATE_DESELECT;
 	Selected = false;
 	return addParityBits(Buffer, 24);
@@ -317,9 +315,7 @@ INLINE uint16_t Reader14443A_Select(uint8_t * Buffer, uint16_t BitCount)
 		memmove(Buffer+2, Buffer, 5);
 		Buffer[0] = (ReaderState == STATE_ACTIVE_CL1) ? ISO14443A_CMD_SELECT_CL1 : (ReaderState == STATE_ACTIVE_CL2) ? ISO14443A_CMD_SELECT_CL2 : ISO14443A_CMD_SELECT_CL3;
 		Buffer[1] = 0x70; // NVB = 56
-		uint16_t crc = ISO14443_CRCA(Buffer, 7);
-		Buffer[7] = crc & 0xFF;
-		Buffer[8] = crc >> 8;
+		ISO14443AAppendCRCA(Buffer, 7);
 		ReaderState = ReaderState - STATE_ACTIVE_CL1 + STATE_SAK_CL1;
 	    return addParityBits(Buffer, 72);
 
@@ -339,7 +335,7 @@ INLINE uint16_t Reader14443A_Select(uint8_t * Buffer, uint16_t BitCount)
 			return 0;
 		}
 		BitCount = removeParityBits(Buffer, BitCount);
-		if (ISO14443_CRCA(Buffer, 3))
+		if (!ISO14443ACheckCRCA(Buffer, 1))
 		{
 			ReaderState = STATE_IDLE;
 			Reader14443ACodecStart();
@@ -374,7 +370,7 @@ INLINE uint16_t Reader14443A_Select(uint8_t * Buffer, uint16_t BitCount)
 			return Reader14443A_Deselect(Buffer);
 		}
 		BitCount = removeParityBits(Buffer, BitCount);
-		if (ISO14443_CRCA(Buffer, 3))
+		if (!ISO14443ACheckCRCA(Buffer, 1))
 		{
 			return Reader14443A_Deselect(Buffer);
 		}
@@ -389,24 +385,20 @@ INLINE uint16_t Reader14443A_Select(uint8_t * Buffer, uint16_t BitCount)
 
 INLINE uint16_t Reader14443A_Halt(uint8_t* Buffer)
 {
-	Buffer[0] = ISO14443A_CMD_HLTA;
-	Buffer[1] = 0x00;
-	uint16_t crc = ISO14443_CRCA(Buffer, 2);
-	Buffer[2] = crc;
-	Buffer[3] = crc >> 8;
 	ReaderState = STATE_HALT;
 	Selected = false;
+	Buffer[0] = ISO14443A_CMD_HLTA;
+	Buffer[1] = 0x00;
+	ISO14443AAppendCRCA(Buffer, 2);
 	return addParityBits(Buffer, 32);
 }
 
 INLINE uint16_t Reader14443A_RATS(uint8_t* Buffer)
 {
+	ReaderState = STATE_ATS;
 	Buffer[0] = 0xE0; // RATS command
 	Buffer[1] = 0x80;
-	uint16_t crc = ISO14443_CRCA(Buffer, 2);
-	Buffer[2] = crc;
-	Buffer[3] = crc >> 8;
-	ReaderState = STATE_ATS;
+	ISO14443AAppendCRCA(Buffer, 2);
 	return addParityBits(Buffer, 32);
 }
 
@@ -453,7 +445,7 @@ INLINE uint16_t Reader14443AIdentify(uint8_t* Buffer, uint16_t BitCount)
 		}
 		BitCount = removeParityBits(Buffer, BitCount);
 
-		if (Buffer[0] != BitCount / 8 - 2 || ISO14443_CRCA(Buffer, Buffer[0] + 2))
+		if (Buffer[0] != BitCount / 8 - 2 || !ISO14443ACheckCRCA(Buffer, Buffer[0]))
 		{
 			/* TODO: Logging? Warning output? */
 			return Reader14443A_Deselect(Buffer);
@@ -503,9 +495,7 @@ INLINE uint16_t Reader14443AIdentify(uint8_t* Buffer, uint16_t BitCount)
 			case CardType_NXP_MIFARE_DESFire_EV1:
 				Buffer[0] = 0x02;
 				Buffer[1] = 0x60;
-				uint16_t crc = ISO14443_CRCA(Buffer, 2);
-				Buffer[2] = crc;
-				Buffer[3] = crc >> 8;
+				ISO14443AAppendCRCA(Buffer, 2);
 				ReaderState = STATE_DESFIRE_INFO;
 				return addParityBits(Buffer, 32);
 
@@ -530,7 +520,7 @@ INLINE uint16_t Reader14443AIdentify(uint8_t* Buffer, uint16_t BitCount)
 				return Reader14443A_Deselect(Buffer);
 			}
 			BitCount = removeParityBits(Buffer, BitCount);
-			if (ISO14443_CRCA(Buffer, BitCount / 8))
+			if (!ISO14443ACheckCRCA(Buffer, BitCount / 8))
 			{
 				CardCandidatesIdx = 0;
 				return Reader14443A_Deselect(Buffer);
@@ -725,7 +715,7 @@ uint16_t Reader14443AAppProcess(uint8_t* Buffer, uint16_t BitCount)
 					}
 					bool readPageAgain = (BitCount < 162) || !checkParityBits(Buffer, BitCount);
 					BitCount = removeParityBits(Buffer, BitCount);
-					if (readPageAgain || ISO14443_CRCA(Buffer, 18)) // the CRC function should return 0 if everything is ok
+					if (readPageAgain || !ISO14443ACheckCRCA(Buffer, 16))
 					{
 						MFURead_CurrentAdress -= 4;
 					} else { // everything is ok for this page
@@ -762,9 +752,7 @@ uint16_t Reader14443AAppProcess(uint8_t* Buffer, uint16_t BitCount)
 				}
 				Buffer[0] = 0x30; // MiFare Ultralight read command
 				Buffer[1] = MFURead_CurrentAdress;
-				uint16_t crc = ISO14443_CRCA(Buffer, 2);
-				Buffer[2] = crc;
-				Buffer[3] = crc >> 8;
+				ISO14443AAppendCRCA(Buffer, 2);
 
 				MFURead_CurrentAdress += 4;
 
@@ -783,18 +771,4 @@ uint16_t Reader14443AAppProcess(uint8_t* Buffer, uint16_t BitCount)
 			return 0;
 	}
 	return 0;
-}
-
-uint16_t ISO14443_CRCA(uint8_t * Buffer, uint8_t ByteCount)
-{
-	uint8_t * DataPtr = Buffer;
-	uint16_t crc = 0x6363;
-	uint8_t ch;
-	while (ByteCount--)
-	{
-		ch = *DataPtr++ ^ crc;
-		ch = ch ^ (ch << 4);
-		crc = (crc >> 8) ^ (ch << 8) ^ (ch << 3) ^ (ch >> 4);
-	}
-	return crc;
 }
