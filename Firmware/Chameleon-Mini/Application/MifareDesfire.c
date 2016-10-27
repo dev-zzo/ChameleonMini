@@ -1457,7 +1457,6 @@ void ISO144434Init(void)
 uint16_t ISO144434ProcessBlock(uint8_t* Buffer, uint16_t ByteCount)
 {
     uint8_t PCB = Buffer[0];
-    uint8_t MyBlockNumber = Iso144434BlockNumber;
     uint8_t PrologueLength;
 
     /* Verify the block's length: at the very least PCB + CRCA */
@@ -1518,18 +1517,12 @@ uint16_t ISO144434ProcessBlock(uint8_t* Buffer, uint16_t ByteCount)
                 /* TODO: LOG ME */
                 return ISO14443A_APP_NO_RESPONSE;
             }
-            /* 7.5.3.2, rule D: toggle on each I-block */
-            Iso144434BlockNumber = MyBlockNumber = !MyBlockNumber;
             if (PCB & ISO14443_PCB_I_BLOCK_CHAINING_MASK) {
                 /* Currently not supported => the frame is ignored */
                 /* TODO: LOG ME */
                 return ISO14443A_APP_NO_RESPONSE;
             }
 
-            Buffer[0] = ISO14443_PCB_I_BLOCK_STATIC | MyBlockNumber;
-            if (PCB & ISO14443_PCB_HAS_CID_MASK) {
-                Buffer[1] = Iso144434CardID;
-            }
             ByteCount = MifareDesfireProcess(Buffer + PrologueLength, ByteCount - PrologueLength);
             if (ByteCount == ISO14443A_APP_NO_RESPONSE) {
                 return ISO14443A_APP_NO_RESPONSE;
