@@ -1526,8 +1526,11 @@ uint16_t ISO144434ProcessBlock(uint8_t* Buffer, uint16_t ByteCount)
             }
 
             Buffer[0] = ISO14443_PCB_I_BLOCK_STATIC | MyBlockNumber;
+            PrologueLength = 1;
             if (PCB & ISO14443_PCB_HAS_CID_MASK) {
+            	Buffer[0] |= ISO14443_PCB_HAS_CID_MASK;
                 Buffer[1] = Iso144434CardID;
+                PrologueLength += 1;
             }
             ByteCount = MifareDesfireProcess(Buffer + PrologueLength, ByteCount - PrologueLength);
             if (ByteCount == ISO14443A_APP_NO_RESPONSE) {
