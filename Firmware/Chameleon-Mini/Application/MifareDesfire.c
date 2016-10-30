@@ -117,7 +117,7 @@ typedef enum {
 
 typedef enum {
     CMD_AUTHENTICATE = 0x0A,
-	CMD_AUTHENTICATE_AES = 0xAA,
+    CMD_AUTHENTICATE_AES = 0xAA,
     CMD_CHANGE_KEY_SETTINGS = 0x54,
     CMD_GET_KEY_SETTINGS = 0x45,
     CMD_CHANGE_KEY = 0xC4,
@@ -175,7 +175,7 @@ typedef enum {
     DESFIRE_GET_VERSION3,
     DESFIRE_GET_APPLICATION_IDS2,
     DESFIRE_AUTHENTICATE2,
-	DESFIRE_AUTHENTICATE_AES2,
+    DESFIRE_AUTHENTICATE_AES2,
     DESFIRE_READING_DATA,
     DESFIRE_WRITING_DATA,
 } DesfireStateType;
@@ -200,7 +200,7 @@ static DesfireSavedCommandStateType DesfireCommandState;
 static uint16_t CardCapacityBlocks;
 static uint8_t AuthenticatedWithKey;
 static MifareDesfireKeyType SessionKey;
-static uint8_t iv[AES_BLOCK_SIZE];
+static uint8_t CurrentIV[AES_BLOCK_SIZE];
 
 /* Cached data: flush to FRAM if changed */
 static MifareDesfirePiccInfoType Picc;
@@ -763,8 +763,8 @@ static uint16_t EV1CmdAuthenticateAES1(uint8_t* Buffer, uint16_t ByteCount)
     /* Generate the nonce B */
     RandomGetBuffer(DesfireCommandState.Authenticate.RndB, AES_BLOCK_SIZE);
     /* Reset IV and encipher the nonce B with the selected key */
-    memset(iv, 0, sizeof(iv));
-    aes128_encrypt_cbc(DesfireCommandState.Authenticate.RndB, &Buffer[1], AES_BLOCK_SIZE, Key, iv);
+    memset(CurrentIV, 0, sizeof(CurrentIV));
+    CryptoAES128EncryptCBC(DesfireCommandState.Authenticate.RndB, &Buffer[1], AES_BLOCK_SIZE, Key, CurrentIV);
     /* Scrub the key */
     memset(&Key, 0, sizeof(Key));
 
@@ -787,7 +787,7 @@ static uint16_t EV1CmdAuthenticateAES2(uint8_t* Buffer, uint16_t ByteCount)
     /* Fetch the key */
     ReadSelectedAppKey(DesfireCommandState.Authenticate.KeyId, Key);
     /* Decipher to obtain plain text */
-    aes128_decrypt_cbc(&Buffer[1], &Buffer[1], 2 * AES_BLOCK_SIZE, Key, iv);
+    CryptoAES128DecryptCBC(&Buffer[1], &Buffer[1], 2 * AES_BLOCK_SIZE, Key, CurrentIV);
     /* Now, RndA is at Buffer[1], RndB' is at Buffer[17] */
     if (memcmp(&Buffer[17], &DesfireCommandState.Authenticate.RndB[1], DESFIRE_NONCE_SIZE - 1) || (Buffer[32] != DesfireCommandState.Authenticate.RndB[0])) {
         /* Scrub the key */
@@ -817,8 +817,8 @@ static uint16_t EV1CmdAuthenticateAES2(uint8_t* Buffer, uint16_t ByteCount)
     /* Rotate the nonce A left by 8 bits */
     Buffer[17] = Buffer[1];
     /* Encipher the nonce A and Reset IV */
-    aes128_encrypt_cbc(&Buffer[2], &Buffer[1], AES_BLOCK_SIZE, Key, iv);
-    memset(iv, 0, sizeof(iv));
+    CryptoAES128EncryptCBC(&Buffer[2], &Buffer[1], AES_BLOCK_SIZE, Key, CurrentIV);
+    memset(CurrentIV, 0, sizeof(CurrentIV));
     /* Scrub the key */
     memset(&Key, 0, sizeof(Key));
 
@@ -1435,7 +1435,7 @@ static uint16_t MifareDesfireProcessIdle(uint8_t* Buffer, uint16_t ByteCount)
     case CMD_AUTHENTICATE:
         return EV0CmdAuthenticate2KTDEA1(Buffer, ByteCount);
     case CMD_AUTHENTICATE_AES:
-		return EV1CmdAuthenticateAES1(Buffer, ByteCount);
+        return EV1CmdAuthenticateAES1(Buffer, ByteCount);
     case CMD_CHANGE_KEY:
         return EV0CmdChangeKey(Buffer, ByteCount);
     case CMD_GET_KEY_SETTINGS:
@@ -1497,7 +1497,7 @@ static uint16_t MifareDesfireProcessCommand(uint8_t* Buffer, uint16_t ByteCount)
     case DESFIRE_AUTHENTICATE2:
         return EV0CmdAuthenticate2KTDEA2(Buffer, ByteCount);
     case DESFIRE_AUTHENTICATE_AES2:
-		return EV1CmdAuthenticateAES2(Buffer, ByteCount);
+        return EV1CmdAuthenticateAES2(Buffer, ByteCount);
     default:
         /* Should not happen. */
         Buffer[0] = STATUS_PICC_INTEGRITY_ERROR;

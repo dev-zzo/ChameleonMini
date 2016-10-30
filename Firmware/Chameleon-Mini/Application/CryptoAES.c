@@ -7,194 +7,191 @@
 
 
 /*
-1. Enable the AES interrupt (optional).
-2. Select the AES direction to encryption or decryption.
-3. Load the key data block into the AES key memory.
-4. Load the data block into the AES state memory.
-5. Start the encryption/decryption operation.
-If more than one block is to be encrypted or decrypted, repeat the procedure from step 3.
+ * 1. Enable the AES interrupt (optional).
+ * 2. Select the AES direction to encryption or decryption.
+ * 3. Load the key data block into the AES key memory.
+ * 4. Load the data block into the AES state memory.
+ * 5. Start the encryption/decryption operation.
+ * If more than one block is to be encrypted or decrypted, repeat the procedure from step 3.
  */
 
 
-#define AES_CTRL_XOR_bm 		(1<<2)
-#define AES_CTRL_DECRYPT_bm 	(1<<4)
-#define AES_CTRL_RESET_bm 		(1<<5)
-#define AES_CTRL_RUN_bm 		(1<<7)
+#define AES_CTRL_XOR_bm         (1<<2)
+#define AES_CTRL_DECRYPT_bm     (1<<4)
+#define AES_CTRL_RESET_bm       (1<<5)
+#define AES_CTRL_RUN_bm         (1<<7)
 
-#define AES_STATUS_ERROR_bm 	(1<<7)
-#define AES_STATUS_SRIF_bm 		(1<<0)
-
-
+#define AES_STATUS_ERROR_bm     (1<<7)
+#define AES_STATUS_SRIF_bm      (1<<0)
 
 
-void aes_InitCryptoUnit()
+
+
+void CryptoAESInitCryptoUnit()
 {
-	AES.CTRL = AES_CTRL_RESET_bm;
+    AES.CTRL = AES_CTRL_RESET_bm;
 }
 
-void aes128_encrypt_block(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *key)
+void CryptoAES128EncryptBlock(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key)
 {
-	if(AES.STATUS & AES_STATUS_ERROR_bm)
-		aes_InitCryptoUnit();
+    if (AES.STATUS & AES_STATUS_ERROR_bm)
+        CryptoAESInitCryptoUnit();
 
-	//AES.CTRL = 0;
+    //AES.CTRL = 0;
 
-	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-		AES.KEY = key[i];
-	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-		AES.STATE = plaintext[i];
+    for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+        AES.KEY = Key[i];
+    for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+        AES.STATE = Plaintext[i];
 
-	AES.CTRL = AES_CTRL_RUN_bm & ~AES_CTRL_DECRYPT_bm;
-	while(AES.STATUS ^ AES_STATUS_SRIF_bm);
+    AES.CTRL = AES_CTRL_RUN_bm & ~AES_CTRL_DECRYPT_bm;
+    while (AES.STATUS ^ AES_STATUS_SRIF_bm);
 
-	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-		ciphertext[i] = AES.STATE;
+    for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+        Ciphertext[i] = AES.STATE;
 }
 
-void aes128_decrypt_block(uint8_t * ciphertext, uint8_t * plaintext, uint8_t * key)
+void CryptoAES128DecryptBlock(uint8_t * Ciphertext, uint8_t * Plaintext, uint8_t * Key)
 {
-	static bool startup = true;
-	static uint8_t lastkey[AES_BLOCK_SIZE];
-	static uint8_t subkey[AES_BLOCK_SIZE];
+    static bool Startup = true;
+    static uint8_t LastKey[AES_BLOCK_SIZE];
+    static uint8_t SubKey[AES_BLOCK_SIZE];
 
-	if(AES.STATUS & AES_STATUS_ERROR_bm)
-		aes_InitCryptoUnit();
+    if (AES.STATUS & AES_STATUS_ERROR_bm)
+        CryptoAESInitCryptoUnit();
 
-	if(startup
-	|| memcmp(lastkey, key, AES_BLOCK_SIZE))
-	{/* generate subkey */
-		memcpy(lastkey, key, AES_BLOCK_SIZE);
-		uint8_t dummy[AES_BLOCK_SIZE] = {0};
-		aes128_encrypt_block(dummy, dummy, key);
-		for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-			subkey[i] = AES.KEY;
-		startup = false;
-	}
+    if (Startup || memcmp(LastKey, Key, AES_BLOCK_SIZE)) {
+        /* generate subkey */
+        memcpy(LastKey, Key, AES_BLOCK_SIZE);
+        uint8_t dummy[AES_BLOCK_SIZE] = {0};
+        CryptoAES128EncryptBlock(dummy, dummy, Key);
+        for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+            SubKey[i] = AES.KEY;
+        Startup = false;
+    }
 
-	//AES.CTRL = AES_CTRL_DECRYPT_bm;
+    //AES.CTRL = AES_CTRL_DECRYPT_bm;
 
-	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-		AES.KEY = subkey[i];
-	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-		AES.STATE = ciphertext[i];
+    for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+        AES.KEY = SubKey[i];
+    for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+        AES.STATE = Ciphertext[i];
 
-	AES.CTRL = AES_CTRL_RUN_bm | AES_CTRL_DECRYPT_bm;
-	while(AES.STATUS ^ AES_STATUS_SRIF_bm);
+    AES.CTRL = AES_CTRL_RUN_bm | AES_CTRL_DECRYPT_bm;
+    while (AES.STATUS ^ AES_STATUS_SRIF_bm);
 
-	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-		plaintext[i] = AES.STATE;
+    for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+        Plaintext[i] = AES.STATE;
 }
 
 
 
-void aes128_encrypt_cbc(uint8_t *plaintext, uint8_t *ciphertext, uint16_t length, uint8_t *key, uint8_t *iv)
+void CryptoAES128EncryptCBC(uint8_t *Plaintext, uint8_t *Ciphertext, uint16_t Length, uint8_t *Key, uint8_t *InitialVector)
 {
-	// todo use XOR-function of cryptounit
+    /* todo use XOR-function of cryptounit */
 
-	for(uint16_t i=0; i < length; i+=AES_BLOCK_SIZE) {
-		for(uint8_t n=0; n < AES_BLOCK_SIZE; ++n)
-			ciphertext[n+i] = plaintext[n+i] ^ iv[n];
-		aes128_encrypt_block(&ciphertext[i], &ciphertext[i], key);
-		memcpy(iv, &ciphertext[i], AES_BLOCK_SIZE);
-	}
+    for (uint16_t i=0; i < Length; i+=AES_BLOCK_SIZE) {
+        for (uint8_t n=0; n < AES_BLOCK_SIZE; ++n)
+            Ciphertext[n + i] = Plaintext[n + i] ^ InitialVector[n];
+        CryptoAES128EncryptBlock(&Ciphertext[i], &Ciphertext[i], Key);
+        memcpy(InitialVector, &Ciphertext[i], AES_BLOCK_SIZE);
+    }
 }
 
-void aes128_decrypt_cbc(uint8_t *ciphertext, uint8_t *plaintext, uint16_t length, uint8_t *key, uint8_t *iv)
+void CryptoAES128DecryptCBC(uint8_t *Ciphertext, uint8_t *Plaintext, uint16_t Length, uint8_t *Key, uint8_t *InitialVector)
 {
-	// todo use XOR-function of cryptounit
+    /* todo use XOR-function of cryptounit */
 
-	for(uint16_t i=0; i < length; i+=AES_BLOCK_SIZE) {
-		uint8_t tmp[AES_BLOCK_SIZE]; // temporary copy of ciphertext so that cipher and plain can point to the same memory location
-		memcpy(tmp, &ciphertext[i], AES_BLOCK_SIZE);
-		aes128_decrypt_block(&ciphertext[i], &plaintext[i], key);
-		for(uint8_t n=0; n < AES_BLOCK_SIZE; ++n)
-			plaintext[n+i] ^= iv[n];
-		memcpy(iv, tmp, AES_BLOCK_SIZE);
-	}
+    for (uint16_t i=0; i < Length; i+=AES_BLOCK_SIZE) {
+        uint8_t TempCipher[AES_BLOCK_SIZE];
+        memcpy(TempCipher, &Ciphertext[i], AES_BLOCK_SIZE);
+        CryptoAES128DecryptBlock(&Ciphertext[i], &Plaintext[i], Key);
+        for (uint8_t n=0; n < AES_BLOCK_SIZE; ++n)
+            Plaintext[n + i] ^= InitialVector[n];
+        memcpy(InitialVector, TempCipher, AES_BLOCK_SIZE);
+    }
 }
 
 
 
 typedef struct {
-	uint8_t K1[AES_BLOCK_SIZE];
-	uint8_t K2[AES_BLOCK_SIZE];
-} AESCmacKey_t;
+    uint8_t K1[AES_BLOCK_SIZE];
+    uint8_t K2[AES_BLOCK_SIZE];
+} AESCmacKeyType;
 
-static void rotate1BitLeft(uint8_t *data, uint8_t len)
+static void Rotate1BitLeft(uint8_t *Data, uint8_t Length)
 {
-    for (uint8_t n = 0; n < len - 1; n++) {
-		data[n] = (data[n] << 1) | (data[n+1] >> 7);
+    for (uint8_t n = 0; n < Length - 1; n++) {
+        Data[n] = (Data[n] << 1) | (Data[n+1] >> 7);
     }
-    data[len - 1] <<= 1;
+    Data[Length - 1] <<= 1;
 }
 
-static void aes128_calcCMACSubkeys(uint8_t *aesKey, AESCmacKey_t *cmacKey)
+static void CryptoAES128CalcCMACSubkeys(uint8_t *AESKey, AESCmacKeyType *CmacKey)
 {
     const uint8_t R = (AES_BLOCK_SIZE == 8) ? 0x1B : 0x87;
-    uint8_t zeros[AES_BLOCK_SIZE] = {0};
-    bool xor = false;
+    uint8_t Zeros[AES_BLOCK_SIZE] = {0};
+    bool Xor = false;
 
-    // Used to compute CMAC on complete blocks
-    aes128_encrypt_block(zeros, cmacKey->K1, aesKey);
-    xor = cmacKey->K1[0] & 0x80;
-    rotate1BitLeft(cmacKey->K1, AES_BLOCK_SIZE);
-    if (xor)
-    	cmacKey->K1[AES_BLOCK_SIZE-1] ^= R;
+    /* Used to compute CMAC on complete blocks */
+    CryptoAES128EncryptBlock(Zeros, CmacKey->K1, AESKey);
+    Xor = CmacKey->K1[0] & 0x80;
+    Rotate1BitLeft(CmacKey->K1, AES_BLOCK_SIZE);
+    if (Xor)
+        CmacKey->K1[AES_BLOCK_SIZE-1] ^= R;
 
-    // Used to compute CMAC on the last block if non-complete
-    memcpy(cmacKey->K2, cmacKey->K1, AES_BLOCK_SIZE);
-    xor = cmacKey->K2[0] & 0x80;
-    rotate1BitLeft(cmacKey->K2, AES_BLOCK_SIZE);
-    if (xor)
-    	cmacKey->K2[AES_BLOCK_SIZE-1] ^= R;
+    /* Used to compute CMAC on the last block if non-complete */
+    memcpy(CmacKey->K2, CmacKey->K1, AES_BLOCK_SIZE);
+    Xor = CmacKey->K2[0] & 0x80;
+    Rotate1BitLeft(CmacKey->K2, AES_BLOCK_SIZE);
+    if (Xor)
+        CmacKey->K2[AES_BLOCK_SIZE-1] ^= R;
 }
 
 /*
- * 	calculate aes-cmac in desfire style
- * 	for proper nist implementation set iv=000.. before fct-call
+ *     calculate aes-cmac in desfire style
+ *     for proper nist implementation set iv=000.. before fct-call
  */
-void aes128_calcCMAC(uint8_t *msg, int16_t len, uint8_t *iv, uint8_t *aesKey)
+void CryptoAES128CalcCMAC(uint8_t *Message, int16_t Length, uint8_t *InitialVector, uint8_t *Key)
 {
-	static bool startup = true;
-	static AESCmacKey_t cmacKey;
-	static uint8_t lastKey[AES_BLOCK_SIZE];
+    static bool Startup = true;
+    static AESCmacKeyType cmacKey;
+    static uint8_t LastKey[AES_BLOCK_SIZE];
 
-	if(startup
-	|| memcmp(aesKey, lastKey, sizeof(lastKey)))
-	{/* cmac-key expandieren */
-		aes128_calcCMACSubkeys(aesKey, &cmacKey);
-		memcpy(lastKey, aesKey, sizeof(lastKey));
-		startup = false;
-	}
-
+    if (Startup || memcmp(Key, LastKey, sizeof(LastKey))) {
+        /* expand cmac-key */
+        CryptoAES128CalcCMACSubkeys(Key, &cmacKey);
+        memcpy(LastKey, Key, sizeof(LastKey));
+        Startup = false;
+    }
 
     uint16_t n = 0;
 
     /* all but not last block */
-    while(n+AES_BLOCK_SIZE < len) {
-    	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-    		iv[i] = iv[i] ^ msg[n+i];
-    	aes128_encrypt_block(iv, iv, aesKey);
-    	n += AES_BLOCK_SIZE;
+    while ((n + AES_BLOCK_SIZE) < Length) {
+        for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+            InitialVector[i] = InitialVector[i] ^ Message[n + i];
+        CryptoAES128EncryptBlock(InitialVector, InitialVector, Key);
+        n += AES_BLOCK_SIZE;
     }
 
     /* last block */
-    if(len%AES_BLOCK_SIZE == 0) {
-    	/* complete block */
-    	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++)
-    		iv[i] = iv[i] ^ msg[n+i] ^ cmacKey.K1[i];
-    	aes128_encrypt_block(iv, iv, aesKey);
+    if (Length % AES_BLOCK_SIZE == 0) {
+        /* complete block */
+        for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
+            InitialVector[i] = InitialVector[i] ^ Message[n + i] ^ cmacKey.K1[i];
+        CryptoAES128EncryptBlock(InitialVector, InitialVector, Key);
     } else {
-    	/* with padding */
-    	for(uint8_t i=0; i<AES_BLOCK_SIZE; i++) {
-    		if(i < len%AES_BLOCK_SIZE)
-    			iv[i] = iv[i] ^ msg[n+i] ^ cmacKey.K2[i];
-    		else if(i == len%AES_BLOCK_SIZE)
-    			iv[i] = iv[i] ^ 0x80 ^ cmacKey.K2[i];
-    		else
-    			iv[i] = iv[i] ^ cmacKey.K2[i];
-    	}
-    	aes128_encrypt_block(iv, iv, aesKey);
+        /* with padding */
+        for (uint8_t i=0; i<AES_BLOCK_SIZE; i++) {
+            if (i < Length%AES_BLOCK_SIZE)
+                InitialVector[i] = InitialVector[i] ^ Message[n + i] ^ cmacKey.K2[i];
+            else if (i == Length%AES_BLOCK_SIZE)
+                InitialVector[i] = InitialVector[i] ^ 0x80 ^ cmacKey.K2[i];
+            else
+                InitialVector[i] = InitialVector[i] ^ cmacKey.K2[i];
+        }
+        CryptoAES128EncryptBlock(InitialVector, InitialVector, Key);
     }
 }
 

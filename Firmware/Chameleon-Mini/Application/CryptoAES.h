@@ -1,17 +1,17 @@
 #ifndef AES_H_
 #define AES_H_
 
-#define AES_BLOCK_SIZE 		(16)
+#define AES_BLOCK_SIZE      (16)
 
 
-void aes_InitCryptoUnit(void);
+void CryptoAESInitCryptoUnit(void);
 
-void aes128_encrypt_block(uint8_t *plaintext, uint8_t *ciphertext, uint8_t *key);
-void aes128_decrypt_block(uint8_t *ciphertext, uint8_t *plaintext, uint8_t *key);
+void CryptoAES128EncryptBlock(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *Key);
+void CryptoAES128DecryptBlock(uint8_t *Ciphertext, uint8_t *Plaintext, uint8_t *Key);
 
-void aes128_encrypt_cbc(uint8_t *plaintext, uint8_t *ciphertext, uint16_t length, uint8_t *key, uint8_t *iv);
-void aes128_decrypt_cbc(uint8_t *ciphertext, uint8_t *plaintext, uint16_t length, uint8_t *key, uint8_t *iv);
+void CryptoAES128EncryptCBC(uint8_t *Plaintext, uint8_t *Ciphertext, uint16_t length, uint8_t *Key, uint8_t *InitialVector);
+void CryptoAES128DecryptCBC(uint8_t *Ciphertext, uint8_t *Plaintext, uint16_t length, uint8_t *Key, uint8_t *InitialVector);
 
-void aes128_calcCMAC(uint8_t *msg, int16_t len, uint8_t *iv, uint8_t *aesKey);
+void CryptoAES128CalcCMAC(uint8_t *Message, int16_t Length, uint8_t *InitialVector, uint8_t *Key);
 
 #endif /* AES_H_ */
