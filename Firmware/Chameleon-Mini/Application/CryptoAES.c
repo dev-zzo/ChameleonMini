@@ -45,7 +45,7 @@ void CryptoAES128EncryptBlock(uint8_t *Plaintext, uint8_t *Ciphertext, uint8_t *
         AES.STATE = Plaintext[i];
 
     AES.CTRL = AES_CTRL_RUN_bm & ~AES_CTRL_DECRYPT_bm;
-    while (AES.STATUS ^ AES_STATUS_SRIF_bm);
+    while ((AES.STATUS & AES_STATUS_SRIF_bm) == 0);
 
     for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
         Ciphertext[i] = AES.STATE;
@@ -78,7 +78,7 @@ void CryptoAES128DecryptBlock(uint8_t * Ciphertext, uint8_t * Plaintext, uint8_t
         AES.STATE = Ciphertext[i];
 
     AES.CTRL = AES_CTRL_RUN_bm | AES_CTRL_DECRYPT_bm;
-    while (AES.STATUS ^ AES_STATUS_SRIF_bm);
+    while ((AES.STATUS & AES_STATUS_SRIF_bm) == 0);
 
     for (uint8_t i=0; i<AES_BLOCK_SIZE; i++)
         Plaintext[i] = AES.STATE;
