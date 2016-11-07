@@ -484,10 +484,12 @@ static uint16_t EV0CmdGetApplicationIds2(uint8_t* Buffer, uint16_t ByteCount)
     if (ByteCount & DESFIRE_XFER_LAST_BLOCK) {
         ByteCount &= ~DESFIRE_XFER_LAST_BLOCK;
         Buffer[0] = STATUS_OPERATION_OK;
+        ByteCount += DESFIRE_STATUS_RESPONSE_SIZE;
         DesfireState = DESFIRE_IDLE;
     }
     else {
         Buffer[0] = STATUS_ADDITIONAL_FRAME;
+        ByteCount += DESFIRE_STATUS_RESPONSE_SIZE;
         DesfireState = DESFIRE_GET_APPLICATION_IDS2;
     }
     return ByteCount;
