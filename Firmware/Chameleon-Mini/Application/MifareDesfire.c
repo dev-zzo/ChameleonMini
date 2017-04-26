@@ -531,33 +531,34 @@ static uint16_t EV0CmdCreateApplication(uint8_t* Buffer, uint16_t ByteCount)
     uint8_t KeyCount;
     uint8_t KeySettings;
 
-    /* Require the PICC app to be selected */
-    if (!IsPiccAppSelected()) {
-        Status = STATUS_PERMISSION_DENIED;
-        goto exit_with_status;
-    }
-    /* Validate command length */
-    if (ByteCount != 1 + 3 + 1 + 1) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    /* Verify authentication settings */
-    if (!(GetSelectedAppKeySettings() & DESFIRE_FREE_CREATE_DELETE) && AuthenticatedWithKey != DESFIRE_MASTER_KEY_ID) {
-        /* PICC master key authentication is required */
-        Status = STATUS_AUTHENTICATION_ERROR;
-        goto exit_with_status;
-    }
-    /* Validate number of keys: less than max */
-    KeyCount = Buffer[5];
-    if (KeyCount > DESFIRE_MAX_KEYS) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
-    KeySettings = Buffer[4];
-    /* Done */
-    Status = CreateApp(Aid, KeyCount, KeySettings);
-
-exit_with_status:
+    do {
+        /* Require the PICC app to be selected */
+        if (!IsPiccAppSelected()) {
+            Status = STATUS_PERMISSION_DENIED;
+            break; // exit with status
+        }
+        /* Validate command length */
+        if (ByteCount != 1 + 3 + 1 + 1) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
+        }
+        /* Verify authentication settings */
+        if (!(GetSelectedAppKeySettings() & DESFIRE_FREE_CREATE_DELETE) && AuthenticatedWithKey != DESFIRE_MASTER_KEY_ID) {
+            /* PICC master key authentication is required */
+            Status = STATUS_AUTHENTICATION_ERROR;
+            break; // exit with status
+        }
+        /* Validate number of keys: less than max */
+        KeyCount = Buffer[5];
+        if (KeyCount > DESFIRE_MAX_KEYS) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
+        KeySettings = Buffer[4];
+        /* Done */
+        Status = CreateApp(Aid, KeyCount, KeySettings);
+    } while (0);
+    // exit with status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
@@ -568,39 +569,40 @@ static uint16_t EV0CmdDeleteApplication(uint8_t* Buffer, uint16_t ByteCount)
     const DesfireAidType Aid = { Buffer[1], Buffer[2], Buffer[3] };
     uint8_t PiccKeySettings;
 
-    /* Validate command length */
-    if (ByteCount != 1 + 3) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    /* Validate AID: AID of all zeros cannot be deleted */
-    if ((Aid[0] | Aid[1] | Aid[2]) == 0x00) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
-    /* Validate authentication: a master key is always required */
-    if (AuthenticatedWithKey != DESFIRE_MASTER_KEY_ID) {
-        Status = STATUS_AUTHENTICATION_ERROR;
-        goto exit_with_status;
-    }
-    /* Validate authentication: deletion with PICC master key is always OK, but if another app is selected... */
-    if (!IsPiccAppSelected()) {
-        /* TODO: verify the selected application is the one being deleted */
-
-        PiccKeySettings = GetPiccKeySettings();
-        /* Check the PICC key settings whether it is OK to delete using app master key */
-        if (!(PiccKeySettings & DESFIRE_FREE_CREATE_DELETE)) {
-            Status = STATUS_AUTHENTICATION_ERROR;
-            goto exit_with_status;
+    do {
+        /* Validate command length */
+        if (ByteCount != 1 + 3) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
         }
-        SelectPiccApp();
-        AuthenticatedWithKey = DESFIRE_NOT_AUTHENTICATED;
-    }
+        /* Validate AID: AID of all zeros cannot be deleted */
+        if ((Aid[0] | Aid[1] | Aid[2]) == 0x00) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
+        /* Validate authentication: a master key is always required */
+        if (AuthenticatedWithKey != DESFIRE_MASTER_KEY_ID) {
+            Status = STATUS_AUTHENTICATION_ERROR;
+            break; // exit with status
+        }
+        /* Validate authentication: deletion with PICC master key is always OK, but if another app is selected... */
+        if (!IsPiccAppSelected()) {
+            /* TODO: verify the selected application is the one being deleted */
 
-    /* Done */
-    Status = DeleteApp(Aid);
+            PiccKeySettings = GetPiccKeySettings();
+            /* Check the PICC key settings whether it is OK to delete using app master key */
+            if (!(PiccKeySettings & DESFIRE_FREE_CREATE_DELETE)) {
+                Status = STATUS_AUTHENTICATION_ERROR;
+                break; // exit with status
+            }
+            SelectPiccApp();
+            AuthenticatedWithKey = DESFIRE_NOT_AUTHENTICATED;
+        }
 
-exit_with_status:
+        /* Done */
+        Status = DeleteApp(Aid);
+    } while (0);
+    // exit with status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
@@ -644,29 +646,30 @@ static uint16_t EV0CmdCreateStandardDataFile(uint8_t* Buffer, uint16_t ByteCount
     uint16_t AccessRights;
     __uint24 FileSize;
 
-    /* Validate command length */
-    if (ByteCount != 1 + 1 + 1 + 2 + 3) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    /* Common args validation */
-    FileNum = Buffer[1];
-    CommSettings = Buffer[2];
-    AccessRights = Buffer[3] | (Buffer[4] << 8);
-    Status = CreateFileCommonValidation(FileNum, CommSettings, AccessRights);
-    if (Status != STATUS_OPERATION_OK) {
-        goto exit_with_status;
-    }
-    /* Validate the file size */
-    FileSize = GET_LE24(&Buffer[5]);
-    if (FileSize > 8160) {
-        Status = STATUS_OUT_OF_EEPROM_ERROR;
-        goto exit_with_status;
-    }
+    do {
+        /* Validate command length */
+        if (ByteCount != 1 + 1 + 1 + 2 + 3) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
+        }
+        /* Common args validation */
+        FileNum = Buffer[1];
+        CommSettings = Buffer[2];
+        AccessRights = Buffer[3] | (Buffer[4] << 8);
+        Status = CreateFileCommonValidation(FileNum, CommSettings, AccessRights);
+        if (Status != STATUS_OPERATION_OK) {
+            break; // exit with status
+        }
+        /* Validate the file size */
+        FileSize = GET_LE24(&Buffer[5]);
+        if (FileSize > 8160) {
+            Status = STATUS_OUT_OF_EEPROM_ERROR;
+            break; // exit with status
+        }
 
-    Status = CreateStandardFile(FileNum, CommSettings, AccessRights, (uint16_t)FileSize);
-
-exit_with_status:
+        Status = CreateStandardFile(FileNum, CommSettings, AccessRights, (uint16_t)FileSize);
+    } while(0);
+    // exit with status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
@@ -679,29 +682,30 @@ static uint16_t EV0CmdCreateBackupDataFile(uint8_t* Buffer, uint16_t ByteCount)
     uint16_t AccessRights;
     __uint24 FileSize;
 
-    /* Validate command length */
-    if (ByteCount != 1 + 1 + 1 + 2 + 3) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    /* Common args validation */
-    FileNum = Buffer[1];
-    CommSettings = Buffer[2];
-    AccessRights = Buffer[3] | (Buffer[4] << 8);
-    Status = CreateFileCommonValidation(FileNum, CommSettings, AccessRights);
-    if (Status != STATUS_OPERATION_OK) {
-        goto exit_with_status;
-    }
-    /* Validate the file size */
-    FileSize = GET_LE24(&Buffer[5]);
-    if (FileSize > 4096) {
-        Status = STATUS_OUT_OF_EEPROM_ERROR;
-        goto exit_with_status;
-    }
+    do {
+        /* Validate command length */
+        if (ByteCount != 1 + 1 + 1 + 2 + 3) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
+        }
+        /* Common args validation */
+        FileNum = Buffer[1];
+        CommSettings = Buffer[2];
+        AccessRights = Buffer[3] | (Buffer[4] << 8);
+        Status = CreateFileCommonValidation(FileNum, CommSettings, AccessRights);
+        if (Status != STATUS_OPERATION_OK) {
+            break; // exit with status
+        }
+        /* Validate the file size */
+        FileSize = GET_LE24(&Buffer[5]);
+        if (FileSize > 4096) {
+            Status = STATUS_OUT_OF_EEPROM_ERROR;
+            break; // exit with status
+        }
 
-    Status = CreateBackupFile(FileNum, CommSettings, AccessRights, (uint16_t)FileSize);
-
-exit_with_status:
+        Status = CreateBackupFile(FileNum, CommSettings, AccessRights, (uint16_t)FileSize);
+    } while (0);
+    // exit with status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
@@ -729,26 +733,27 @@ static uint16_t EV0CmdDeleteFile(uint8_t* Buffer, uint16_t ByteCount)
     uint8_t Status;
     uint8_t FileNum;
 
-    /* Validate command length */
-    if (ByteCount != 1 + 1) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    FileNum = Buffer[1];
-    /* Validate file number */
-    if (FileNum >= DESFIRE_MAX_FILES) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
-    /* Validate access settings */
-    if (!(GetSelectedAppKeySettings() & DESFIRE_FREE_CREATE_DELETE) && AuthenticatedWithKey != DESFIRE_MASTER_KEY_ID) {
-        Status = STATUS_AUTHENTICATION_ERROR;
-        goto exit_with_status;
-    }
+    do {
+        /* Validate command length */
+        if (ByteCount != 1 + 1) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
+        }
+        FileNum = Buffer[1];
+        /* Validate file number */
+        if (FileNum >= DESFIRE_MAX_FILES) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
+        /* Validate access settings */
+        if (!(GetSelectedAppKeySettings() & DESFIRE_FREE_CREATE_DELETE) && AuthenticatedWithKey != DESFIRE_MASTER_KEY_ID) {
+            Status = STATUS_AUTHENTICATION_ERROR;
+            break; // exit with status
+        }
 
-    Status = DeleteFile(FileNum);
-
-exit_with_status:
+        Status = DeleteFile(FileNum);
+    } while (0);
+    // exit with status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
@@ -830,58 +835,59 @@ static uint16_t EV0CmdReadData(uint8_t* Buffer, uint16_t ByteCount)
     __uint24 Offset;
     __uint24 Length;
 
-    /* Validate command length */
-    if (ByteCount != 1 + 1 + 3 + 3) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    FileNum = Buffer[1];
-    /* Validate file number */
-    if (FileNum >= DESFIRE_MAX_FILES) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
+    do {
+        /* Validate command length */
+        if (ByteCount != 1 + 1 + 3 + 3) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
+        }
+        FileNum = Buffer[1];
+        /* Validate file number */
+        if (FileNum >= DESFIRE_MAX_FILES) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
 
-    Status = SelectFile(FileNum);
-    if (Status != STATUS_OPERATION_OK) {
-        goto exit_with_status;
-    }
+        Status = SelectFile(FileNum);
+        if (Status != STATUS_OPERATION_OK) {
+            break; // exit with status
+        }
 
-    CommSettings = GetSelectedFileCommSettings();
-    /* Verify authentication: read or read&write required */
-    switch (ValidateAuthentication(GetSelectedFileAccessRights(), VALIDATE_ACCESS_READWRITE|VALIDATE_ACCESS_READ)) {
-    case VALIDATED_ACCESS_DENIED:
-        Status = STATUS_AUTHENTICATION_ERROR;
-        goto exit_with_status;
-    case VALIDATED_ACCESS_GRANTED_PLAINTEXT:
-        CommSettings = DESFIRE_COMMS_PLAINTEXT;
-        /* Fall through */
-    case VALIDATED_ACCESS_GRANTED:
-        /* Carry on */
-        break;
-    }
+        CommSettings = GetSelectedFileCommSettings();
+        /* Verify authentication: read or read&write required */
+        switch (ValidateAuthentication(GetSelectedFileAccessRights(), VALIDATE_ACCESS_READWRITE|VALIDATE_ACCESS_READ)) {
+        case VALIDATED_ACCESS_DENIED:
+            Status = STATUS_AUTHENTICATION_ERROR;
+            goto exit_with_status; // we still need the goto here since we are inside switch
+        case VALIDATED_ACCESS_GRANTED_PLAINTEXT:
+            CommSettings = DESFIRE_COMMS_PLAINTEXT;
+            /* Fall through */
+        case VALIDATED_ACCESS_GRANTED:
+            /* Carry on */
+            break;
+        }
 
-    /* Validate the file type */
-    if (GetSelectedFileType() != DESFIRE_FILE_STANDARD_DATA && GetSelectedFileType() != DESFIRE_FILE_BACKUP_DATA) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
-    /* Validate offset and length (preliminary) */
-    Offset = GET_LE24(&Buffer[2]);
-    Length = GET_LE24(&Buffer[5]);
-    if (Offset > 8192 || Length > 8192) {
-        Status = STATUS_BOUNDARY_ERROR;
-        goto exit_with_status;
-    }
+        /* Validate the file type */
+        if (GetSelectedFileType() != DESFIRE_FILE_STANDARD_DATA && GetSelectedFileType() != DESFIRE_FILE_BACKUP_DATA) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
+        /* Validate offset and length (preliminary) */
+        Offset = GET_LE24(&Buffer[2]);
+        Length = GET_LE24(&Buffer[5]);
+        if (Offset > 8192 || Length > 8192) {
+            Status = STATUS_BOUNDARY_ERROR;
+            break; // exit with status
+        }
 
-    /* Setup and start the transfer */
-    Status = ReadDataFileSetup(CommSettings, (uint16_t)Offset, (uint16_t)Length);
-    if (Status) {
-        goto exit_with_status;
-    }
-    return ReadDataFileIterator(Buffer, 1);
-
-exit_with_status:
+        /* Setup and start the transfer */
+        Status = ReadDataFileSetup(CommSettings, (uint16_t)Offset, (uint16_t)Length);
+        if (Status) {
+            break; // exit with status
+        }
+        return ReadDataFileIterator(Buffer, 1);
+    } while (0);
+    exit_with_status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
@@ -921,58 +927,59 @@ static uint16_t EV0CmdWriteData(uint8_t* Buffer, uint16_t ByteCount)
     __uint24 Offset;
     __uint24 Length;
 
-    /* Validate command length */
-    if (ByteCount < 1 + 1 + 3 + 3) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    FileNum = Buffer[1];
-    /* Validate file number */
-    if (FileNum >= DESFIRE_MAX_FILES) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
+    do {
+        /* Validate command length */
+        if (ByteCount < 1 + 1 + 3 + 3) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
+        }
+        FileNum = Buffer[1];
+        /* Validate file number */
+        if (FileNum >= DESFIRE_MAX_FILES) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
 
-    Status = SelectFile(FileNum);
-    if (Status != STATUS_OPERATION_OK) {
-        goto exit_with_status;
-    }
+        Status = SelectFile(FileNum);
+        if (Status != STATUS_OPERATION_OK) {
+            break; // exit with status
+        }
 
-    CommSettings = GetSelectedFileCommSettings();
-    /* Verify authentication: read or read&write required */
-    switch (ValidateAuthentication(GetSelectedFileAccessRights(), VALIDATE_ACCESS_READWRITE|VALIDATE_ACCESS_WRITE)) {
-    case VALIDATED_ACCESS_DENIED:
-        Status = STATUS_AUTHENTICATION_ERROR;
-        goto exit_with_status;
-    case VALIDATED_ACCESS_GRANTED_PLAINTEXT:
-        CommSettings = DESFIRE_COMMS_PLAINTEXT;
-        /* Fall through */
-    case VALIDATED_ACCESS_GRANTED:
-        /* Carry on */
-        break;
-    }
+        CommSettings = GetSelectedFileCommSettings();
+        /* Verify authentication: read or read&write required */
+        switch (ValidateAuthentication(GetSelectedFileAccessRights(), VALIDATE_ACCESS_READWRITE|VALIDATE_ACCESS_WRITE)) {
+        case VALIDATED_ACCESS_DENIED:
+            Status = STATUS_AUTHENTICATION_ERROR;
+            goto exit_with_status; // we still need goto here since we are inside switch
+        case VALIDATED_ACCESS_GRANTED_PLAINTEXT:
+            CommSettings = DESFIRE_COMMS_PLAINTEXT;
+            /* Fall through */
+        case VALIDATED_ACCESS_GRANTED:
+            /* Carry on */
+            break;
+        }
 
-    /* Validate the file type */
-    if (GetSelectedFileType() != DESFIRE_FILE_STANDARD_DATA && GetSelectedFileType() != DESFIRE_FILE_BACKUP_DATA) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
-    /* Validate offset and length (preliminary) */
-    Offset = GET_LE24(&Buffer[2]);
-    Length = GET_LE24(&Buffer[5]);
-    if (Offset > 8192 || Length > 8192) {
-        Status = STATUS_BOUNDARY_ERROR;
-        goto exit_with_status;
-    }
+        /* Validate the file type */
+        if (GetSelectedFileType() != DESFIRE_FILE_STANDARD_DATA && GetSelectedFileType() != DESFIRE_FILE_BACKUP_DATA) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
+        /* Validate offset and length (preliminary) */
+        Offset = GET_LE24(&Buffer[2]);
+        Length = GET_LE24(&Buffer[5]);
+        if (Offset > 8192 || Length > 8192) {
+            Status = STATUS_BOUNDARY_ERROR;
+            break; // exit with status
+        }
 
-    /* Setup and start the transfer */
-    Status = WriteDataFileSetup(CommSettings, (uint16_t)Offset, (uint16_t)Length);
-    if (Status) {
-        goto exit_with_status;
-    }
-    Status = WriteDataFileIterator(&Buffer[8], ByteCount - 8);
-
-exit_with_status:
+        /* Setup and start the transfer */
+        Status = WriteDataFileSetup(CommSettings, (uint16_t)Offset, (uint16_t)Length);
+        if (Status) {
+            break; // exit with status
+        }
+        Status = WriteDataFileIterator(&Buffer[8], ByteCount - 8);
+    } while (0);
+    exit_with_status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
@@ -984,53 +991,54 @@ static uint16_t EV0CmdGetValue(uint8_t* Buffer, uint16_t ByteCount)
     uint8_t CommSettings;
     TransferStatus XferStatus;
 
-    /* Validate command length */
-    if (ByteCount != 1 + 1) {
-        Status = STATUS_LENGTH_ERROR;
-        goto exit_with_status;
-    }
-    FileNum = Buffer[1];
-    /* Validate file number */
-    if (FileNum >= DESFIRE_MAX_FILES) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
+    do {
+        /* Validate command length */
+        if (ByteCount != 1 + 1) {
+            Status = STATUS_LENGTH_ERROR;
+            break; // exit with status
+        }
+        FileNum = Buffer[1];
+        /* Validate file number */
+        if (FileNum >= DESFIRE_MAX_FILES) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
 
-    Status = SelectFile(FileNum);
-    if (Status != STATUS_OPERATION_OK) {
-        goto exit_with_status;
-    }
+        Status = SelectFile(FileNum);
+        if (Status != STATUS_OPERATION_OK) {
+            break; // exit with status
+        }
 
-    CommSettings = GetSelectedFileCommSettings();
-    /* Verify authentication: read or read&write required */
-    switch (ValidateAuthentication(GetSelectedFileAccessRights(), VALIDATE_ACCESS_READWRITE|VALIDATE_ACCESS_READ|VALIDATE_ACCESS_WRITE)) {
-    case VALIDATED_ACCESS_DENIED:
-        Status = STATUS_AUTHENTICATION_ERROR;
-        goto exit_with_status;
-    case VALIDATED_ACCESS_GRANTED_PLAINTEXT:
-        CommSettings = DESFIRE_COMMS_PLAINTEXT;
-        /* Fall through */
-    case VALIDATED_ACCESS_GRANTED:
-        /* Carry on */
-        break;
-    }
+        CommSettings = GetSelectedFileCommSettings();
+        /* Verify authentication: read or read&write required */
+        switch (ValidateAuthentication(GetSelectedFileAccessRights(), VALIDATE_ACCESS_READWRITE|VALIDATE_ACCESS_READ|VALIDATE_ACCESS_WRITE)) {
+        case VALIDATED_ACCESS_DENIED:
+            Status = STATUS_AUTHENTICATION_ERROR;
+            goto exit_with_status; // we still need goto here since we are inside switch
+        case VALIDATED_ACCESS_GRANTED_PLAINTEXT:
+            CommSettings = DESFIRE_COMMS_PLAINTEXT;
+            /* Fall through */
+        case VALIDATED_ACCESS_GRANTED:
+            /* Carry on */
+            break;
+        }
 
-    /* Validate the file type */
-    if (GetSelectedFileType() != DESFIRE_FILE_VALUE_DATA) {
-        Status = STATUS_PARAMETER_ERROR;
-        goto exit_with_status;
-    }
+        /* Validate the file type */
+        if (GetSelectedFileType() != DESFIRE_FILE_VALUE_DATA) {
+            Status = STATUS_PARAMETER_ERROR;
+            break; // exit with status
+        }
 
-    /* Setup and start the transfer */
-    Status = ReadValueFileSetup(CommSettings);
-    if (Status) {
-        goto exit_with_status;
-    }
-    XferStatus = ReadDataFileTransfer(&Buffer[1]);
-    Buffer[0] = STATUS_OPERATION_OK;
-    return DESFIRE_STATUS_RESPONSE_SIZE + XferStatus.BytesProcessed;
-
-exit_with_status:
+        /* Setup and start the transfer */
+        Status = ReadValueFileSetup(CommSettings);
+        if (Status) {
+            break; // exit with status
+        }
+        XferStatus = ReadDataFileTransfer(&Buffer[1]);
+        Buffer[0] = STATUS_OPERATION_OK;
+        return DESFIRE_STATUS_RESPONSE_SIZE + XferStatus.BytesProcessed;
+    } while (0);
+    exit_with_status:
     Buffer[0] = Status;
     return DESFIRE_STATUS_RESPONSE_SIZE;
 }
