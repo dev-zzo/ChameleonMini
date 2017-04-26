@@ -491,10 +491,12 @@ static uint16_t GetApplicationIdsIterator(uint8_t* Buffer, uint16_t ByteCount)
     Status = GetApplicationIdsTransfer(&Buffer[1]);
     if (Status.IsComplete) {
         Buffer[0] = STATUS_OPERATION_OK;
+        ByteCount += DESFIRE_STATUS_RESPONSE_SIZE;
         DesfireState = DESFIRE_IDLE;
     }
     else {
         Buffer[0] = STATUS_ADDITIONAL_FRAME;
+        ByteCount += DESFIRE_STATUS_RESPONSE_SIZE;
         DesfireState = DESFIRE_GET_APPLICATION_IDS2;
     }
     return DESFIRE_STATUS_RESPONSE_SIZE + Status.BytesProcessed;
