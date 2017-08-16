@@ -50,6 +50,9 @@ static void DebugPrintP(const char *fmt, ...)
 
 #endif /* DEBUG_THIS */
 
+/* ISO14443-4 */
+static uint8_t LastBuffer[CODEC_BUFFER_SIZE + 1]; // LastBuffer[0] contains the byte count
+
 /* Anticollision parameters */
 #define ATQA_VALUE              0x0344
 #define SAK_CL1_VALUE           (ISO14443A_SAK_COMPLETE_COMPLIANT | ISO14443A_SAK_INCOMPLETE)
@@ -1368,8 +1371,18 @@ uint16_t ISO144434ProcessBlock(uint8_t* Buffer, uint16_t ByteCount)
             break;
 
         case ISO14443_PCB_R_BLOCK:
-            /* R-block handling is not yet supported */
-            /* TODO: support at least retransmissions */
+            if ((PCB & ISO14443_PCB_BLOCK_NUMBER_MASK) == MyBlockNumber)
+            {
+                memcpy(Buffer, LastBuffer+1, LastBuffer[0]); // LastBuffer[0] contains the byte count
+                return LastBuffer[0];
+            }
+            if (PCB & ISO14443_PCB_R_BLOCK_ACKNAK_MASK)
+            { // NAK
+                Iso144434BlockNumber = MyBlockNumber = !MyBlockNumber;
+                Buffer[0] = ISO14443_PCB_R_BLOCK_STATIC | MyBlockNumber;
+                ByteCount = 1;
+                break;
+            }
             return ISO14443A_APP_NO_RESPONSE;
 
         case ISO14443_PCB_S_BLOCK:
@@ -1389,7 +1402,10 @@ uint16_t ISO144434ProcessBlock(uint8_t* Buffer, uint16_t ByteCount)
     }
 
     ISO14443AAppendCRCA(Buffer, ByteCount);
-    return ByteCount + ISO14443A_CRCA_SIZE;
+    ByteCount += ISO14443A_CRCA_SIZE;
+    memcpy(LastBuffer + 1, Buffer, (ByteCount > CODEC_BUFFER_SIZE) ? CODEC_BUFFER_SIZE : ByteCount);
+    LastBuffer[0] = ByteCount;
+    return ByteCount;
 }
 
 /*
